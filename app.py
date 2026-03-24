@@ -1,83 +1,131 @@
 import streamlit as st
+import pandas as pd
+from PIL import Image
 
-st.set_page_config(page_title="Simulador ROI Aparatología", layout="wide")
+# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS
+st.set_page_config(page_title="Calculadora ROI Pro", layout="wide")
 
-# Estilo personalizado para que se vea más profesional
+# Estilos personalizados (CSS)
 st.markdown("""
     <style>
-    .main { background-color: #f5f7f9; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0; }
+    .main { background-color: #f8f9fa; }
+    div[data-testid="stMetricValue"] { font-size: 1.8rem; color: #1f77b4; }
+    
+    /* Estilo para el disclaimer/footer inferior */
+    .footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: #f1f1f1;
+        color: #555555;
+        text-align: center;
+        padding: 10px;
+        font-size: 0.8rem;
+        border-top: 1px solid #e0e0e0;
+        z-index: 1000;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📊 Simulador de Inversión en Aparatología")
-st.info("Configura los valores en la izquierda para ver el análisis de rentabilidad en tiempo real.")
+# 2. SECCIÓN SUPERIOR: LOGO Y TÍTULO
+# st.image("tu_logo.png", width=200) # Reemplaza con tu logo si lo tienes online
+# Como tienes el logo en GitHub, puedes cargarlo directamente:
+try:
+    image = Image.open('Logo Academia-black (1).png')
+    st.image(image, width=250)
+except FileNotFoundError:
+    st.warning("No se pudo cargar el logo. Asegúrate de que el archivo 'Logo Academia-black (1).png' esté en la raíz de tu repositorio de GitHub.")
 
-# --- BARRA LATERAL (ENTRADAS) ---
+st.title("🚀 Simulador de Rentabilidad: Inversión en Aparatología")
+st.markdown("---")
+
+# --- 3. BARRA LATERAL (ENTRADAS) ---
 with st.sidebar:
-    st.header("⚙️ Configuración")
-    
-    st.subheader("Inversión")
-    inv_sin_iva = st.number_input("Inversión (sin IVA)", value=15000.0, step=500.0)
+    st.header("📋 Datos de la Inversión")
+    inv_sin_iva = st.number_input("Inversión Equipo (sin IVA)", value=15000.0)
     iva_pct = st.slider("IVA %", 0, 21, 21)
-    costes_adic = st.number_input("Costes Adicionales (formación, etc)", value=300.0)
-    intereses = st.number_input("Intereses totales", value=2000.0)
+    costes_adic = st.number_input("Formación y otros costes", value=300.0)
+    intereses = st.number_input("Intereses financiación", value=2000.0)
     
-    st.subheader("Capacidad y Tiempo")
-    anos_amort = st.number_input("Años de amortización", value=5)
-    semanas_ano = st.slider("Semanas de trabajo al año", 1, 52, 48)
-    sesiones_sem_cap = st.number_input("Capacidad máxima sesiones/semana", value=30)
-    duracion_sesion = st.number_input("Duración sesión (minutos)", value=60)
+    st.header("⏱️ Capacidad de Trabajo")
+    anos_amort = st.slider("Años de amortización", 1, 10, 5)
+    semanas_ano = st.slider("Semanas laborales/año", 1, 52, 48)
+    sesiones_sem_max = st.number_input("Capacidad máx. (sesiones/sem)", value=30)
+    minutos_sesion = st.number_input("Minutos por sesión", value=60)
 
-    st.subheader("Venta Real")
-    precio_sesion = st.number_input("Precio medio por sesión (€)", value=60.0)
-    sesiones_mes_real = st.slider("Sesiones REALES al mes", 1, 120, 6)
+    st.header("💰 Estrategia de Precios")
+    precio_sesion = st.number_input("Precio de venta sesión (€)", value=60.0)
+    sesiones_reales_mes = st.slider("Sesiones reales al mes", 1, 100, 6)
 
-# --- LÓGICA DE CÁLCULO (Réplica de tu Sheets) ---
-inv_total_con_iva = (inv_sin_iva * (1 + iva_pct/100)) + costes_adic + intereses
-coste_anual_total = inv_total_con_iva / anos_amort
-coste_mensual_equipo = coste_anual_total / 12
+# --- 4. CÁLCULOS MAESTROS ---
+inv_total_iva = (inv_sin_iva * (1 + iva_pct/100)) + costes_adic + intereses
+coste_anual = inv_total_iva / anos_amort
+coste_mensual = coste_anual / 12
 
-# Coste por sesión basado en capacidad teórica (como en tu celda F24)
-total_sesiones_teoricas_vida = anos_amort * semanas_ano * sesiones_sem_cap
-coste_por_sesion = inv_total_con_iva / total_sesiones_teoricas_vida
-coste_por_minuto = coste_por_sesion / duracion_sesion
+# Capacidad teórica total
+total_sesiones_teoricas = anos_amort * semanas_ano * sesiones_sem_max
+coste_unitario_sesion = inv_total_iva / total_sesiones_teoricas
+coste_minuto = coste_unitario_sesion / minutos_sesion
 
-# Resultados de venta real
-ingresos_mensuales = sesiones_mes_real * precio_sesion
-beneficio_mensual = ingresos_mensuales - coste_mensual_equipo
-margen_bruto = ((precio_sesion - coste_por_sesion) / precio_sesion) * 100
-sesiones_necesarias_punto_equilibrio = coste_mensual_equipo / precio_sesion
+# Beneficio
+beneficio_sesion = precio_sesion - coste_unitario_sesion
+margen_pct = (beneficio_sesion / precio_sesion) * 100
+punto_equilibrio_mes = coste_mensual / precio_sesion
+beneficio_mensual_real = (sesiones_reales_mes * precio_sesion) - coste_mensual
 
-# --- VISUALIZACIÓN (DASHBOARD) ---
+# --- 5. DASHBOARD PRINCIPAL ---
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Inversión Total", f"{inv_total_con_iva:,.2f} €")
-col2.metric("Coste Mensual", f"{coste_mensual_equipo:,.2f} €")
-col3.metric("Beneficio Mensual", f"{beneficio_mensual:,.2f} €", delta=f"{beneficio_mensual:,.2f} €")
-col4.metric("¿Es Rentable?", "🟢 SÍ" if beneficio_mensual > 0 else "🔴 NO", delta_color="normal")
+col1.metric("Inversión Total", f"{inv_total_iva:,.2f} €")
+col2.metric("Coste Mensual Fijo", f"{coste_mensual:,.2f} €")
+col3.metric("Beneficio Mensual", f"{beneficio_mensual_real:,.2f} €")
+col4.metric("¿Es Rentable?", "✅ SÍ" if beneficio_mensual_real > 0 else "❌ NO")
 
 st.markdown("---")
 
-c1, c2 = st.columns(2)
+tab1, tab2 = st.tabs(["📊 Análisis Detallado", "📈 Escenarios de Crecimiento"])
 
-with c1:
-    st.subheader("📈 Análisis de Amortización")
-    st.write(f"**Sesiones mensuales para cubrir costes:** {sesiones_necesarias_punto_equilibrio:.2f}")
-    st.write(f"**Beneficio estimado por sesión:** {precio_sesion - coste_por_sesion:.2f} €")
-    st.write(f"**Margen Bruto:** {margen_bruto:.2f} %")
+with tab1:
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("Costes Unitarios")
+        st.write(f"**Coste por sesión (amortización):** {coste_unitario_sesion:.2f} €")
+        st.write(f"**Coste por minuto de uso:** {coste_minuto:.4f} €")
+        st.write(f"**Sesiones necesarias al mes para no perder:** {punto_equilibrio_mes:.2f}")
+    with c2:
+        st.subheader("Margen de Beneficio")
+        st.write(f"**Beneficio por sesión:** {beneficio_sesion:.2f} €")
+        st.write(f"**Margen Bruto sobre precio:** {margen_pct:.2f}%")
+        st.progress(min(margen_pct/100, 1.0))
+
+with tab2:
+    st.subheader("Comparativa de Escenarios")
+    # Generar tabla de escenarios
+    escenarios = [5, 10, 20, 30, 40, 50]
+    data_escenarios = []
+    for s in escenarios:
+        ingreso = s * precio_sesion
+        ben = ingreso - coste_mensual
+        rentable = "Sí" if ben > 0 else "No"
+        ocupacion = (s / (sesiones_sem_max * 4)) * 100
+        data_escenarios.append([s, f"{ingreso:,.2f} €", f"{ben:,.2f} €", rentable, f"{ocupacion:.1f}%"])
     
-    progress_rel = min(sesiones_mes_real / sesiones_necesarias_punto_equilibrio, 1.0) if sesiones_necesarias_punto_equilibrio > 0 else 0
-    st.write(f"Cobertura de costes fijos ({int(progress_rel*100)}%)")
-    st.progress(progress_rel)
+    df = pd.DataFrame(data_escenarios, columns=["Sesiones/Mes", "Ingresos", "Beneficio Neto", "Rentable", "% Ocupación"])
+    st.table(df)
 
-with c2:
-    st.subheader("⏱️ Eficiencia Operativa")
-    st.write(f"**Coste por sesión (amortización):** {coste_por_sesion:.2f} €")
-    st.write(f"**Coste por minuto de uso:** {coste_por_minuto:.4f} €")
-    st.write(f"**Ingresos anuales estimados:** {ingresos_mensuales * 12:,.2f} €")
+    # Gráfico de barras de beneficio
+    st.subheader("Proyección de Beneficio Mensual")
+    chart_data = pd.DataFrame({
+        'Sesiones': [str(s) for s in escenarios],
+        'Beneficio (€)': [(s * precio_sesion) - coste_mensual for s in escenarios]
+    })
+    st.bar_chart(data=chart_data, x='Sesiones', y='Beneficio (€)')
 
-st.markdown("---")
-if beneficio_mensual < 0:
-    st.warning("⚠️ El escenario actual no es rentable. Considera aumentar el precio por sesión o el volumen de clientes.")
-else:
-    st.success("🚀 ¡Inversión saludable! Cada sesión adicional después de la número " + str(round(sesiones_necesarias_punto_equilibrio,1)) + " es beneficio neto.")
+# --- 6. SECCIÓN INFERIOR: DISCLAIMER/FOOTER (CSS FIJO) ---
+st.markdown("""
+    <div class="footer">
+        Este simulador es solo orientativo. Impulxer Academy no se hace responsable de discrepancias con la realidad.
+        Es responsabilidad del usuario introducir los datos con la mayor exactitud para que el resultado sea lo más real posible.
+        <strong>Propiedad de Impulxer Academy SL - 2026</strong>
+    </div>
+    """, unsafe_allow_html=True)
