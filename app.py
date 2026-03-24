@@ -5,7 +5,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS
-st.set_page_config(page_title="Calculadora ROI Impulxer", layout="wide")
+st.set_page_config(page_title="Calculadora ROI Aparotología - Impulxer", layout="wide")
 brand_color = "#996600"
 
 st.markdown(f"""
@@ -71,21 +71,21 @@ st.markdown('<p class="main-title">📊 Simulador de Rentabilidad de Aparatolog�
 # 3. BARRA LATERAL (ENTRADAS)
 with st.sidebar:
     st.header("🖊️ Identificación del Equipo")
-    nombre_aparato = st.text_input("Nombre del Aparato", value="Láser Diodo")
-    marca_aparato = st.text_input("Marca / Modelo", value="Impulxer Pro")
+    nombre_aparato = st.text_input("Nombre del Aparato", value="ej: Láser Diodo")
+    marca_aparato = st.text_input("Marca / Modelo", value="Ej: Impulxer Pro")
     st.markdown("---")
     st.header("📋 Datos de la Inversión")
-    inv_sin_iva = st.number_input("Inversión Equipo (sin IVA)", value=15000.0, step=500.0)
+    inv_sin_iva = st.number_input("Inversión Equipo (sin IVA)", value=0.0, step=0.0)
     iva_pct = st.slider("IVA %", 0, 21, 21)
-    costes_adic = st.number_input("Formación y otros costes", value=300.0)
-    intereses = st.number_input("Intereses financiación", value=2000.0)
+    costes_adic = st.number_input("Formación y otros costes", value=0.0)
+    intereses = st.number_input("Intereses financiación", value=0.0)
     st.header("⏱️ Capacidad de Trabajo")
     anos_amort = st.slider("Años de amortización", 1, 10, 5)
     semanas_ano = st.slider("Semanas laborales/año", 1, 52, 48)
-    sesiones_sem_max = st.number_input("Capacidad máx. (sesiones/sem)", value=30)
-    minutos_sesion = st.number_input("Minutos por sesión", value=60)
+    sesiones_sem_max = st.number_input("Capacidad máx. (sesiones/sem)", value=0)
+    minutos_sesion = st.number_input("Minutos por sesión", value=0)
     st.header("💰 Estrategia de Precios")
-    precio_sesion = st.number_input("Precio venta sesión (€)", value=60.0)
+    precio_sesion = st.number_input("Precio venta sesión (€)", value=0.0)
     sesiones_reales_mes = st.slider("Sesiones reales al mes", 1, 100, 6)
 
 # 4. CÁLCULOS MAESTROS (Revisados vs Original)
