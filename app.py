@@ -3,6 +3,7 @@ import pandas as pd
 from PIL import Image
 from fpdf import FPDF
 import io
+import os
 from datetime import datetime
 
 # 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS
@@ -18,23 +19,27 @@ st.markdown(f"""
         .main-title {{ font-size: 1.5rem !important; }}
         .stImage img {{ width: 150px !important; }}
     }}
-    .stProgress > div > div > div > div {{ background-color: {brand_color}; }}
+    .stProgress > div > div > div > div {{ background-color: {brand_color} !important; }}
     div[data-testid="stMetricValue"] {{ color: {brand_color}; }}
+    button[aria-selected="true"] {{ border-bottom-color: {brand_color} !important; color: {brand_color} !important; }}
+    button[aria-selected="true"] p {{ color: {brand_color} !important; }}
     .footer {{
         position: fixed; left: 0; bottom: 0; width: 100%;
         background-color: #ffffff; color: #555555; text-align: center;
         padding: 15px; font-size: 0.8rem; border-top: 1px solid #e0e0e0; z-index: 1000;
     }}
+    .spacer {{ height: 100px; }}
     </style>
     """, unsafe_allow_html=True)
 
 # 2. LOGO
-logo_path = 'Logo Academia-black (1).png'
+logo_filename = 'Logo Academia-black (1).png'
 try:
-    image = Image.open(logo_path)
+    image = Image.open(logo_filename)
     st.image(image, width=220)
+    logo_exists = True
 except:
-    logo_path = None
+    logo_exists = False
 
 st.markdown('<p class="main-title">📊 Simulador de Rentabilidad de Aparatología</p>', unsafe_allow_html=True)
 
@@ -48,19 +53,22 @@ with st.sidebar:
     inv_sin_iva = st.number_input("Inversión Equipo (sin IVA)", value=15000.0)
     iva_pct = st.slider("IVA %", 0, 21, 21)
     costes_adic = st.number_input("Otros costes", value=300.0)
-    intereses = st.number_input("Intereses", value=2000.0)
-    st.header("⏱️ Capacidad")
+    intereses = st.number_input("Intereses financiación", value=2000.0)
+    st.header("⏱️ Capacidad de Trabajo")
     anos_amort = st.slider("Años de amortización", 1, 10, 5)
     semanas_ano = st.slider("Semanas laborales/año", 1, 52, 48)
-    sesiones_sem_max = st.number_input("Capacidad máx. (ses/sem)", value=30)
-    st.header("💰 Estrategia")
+    sesiones_sem_max = st.number_input("Capacidad máx. (sesiones/sem)", value=30)
+    st.header("💰 Estrategia de Precios")
     precio_sesion = st.number_input("Precio venta sesión (€)", value=60.0)
     sesiones_reales_mes = st.slider("Sesiones reales al mes", 1, 100, 6)
 
 # 4. CÁLCULOS
 inv_total_iva = (inv_sin_iva * (1 + iva_pct/100)) + costes_adic + intereses
 coste_mensual = (inv_total_iva / anos_amort) / 12
+total_ses_teoricas = anos_amort * semanas_ano * sesiones_sem_max
+coste_unitario_sesion = inv_total_iva / total_ses_teoricas if total_ses_teoricas > 0 else 0
 beneficio_mensual_real = (sesiones_reales_mes * precio_sesion) - coste_mensual
+punto_equilibrio = coste_mensual / precio_sesion if precio_sesion > 0 else 0
 
 # 5. DASHBOARD
 st.subheader(f"Análisis: {nombre_aparato} ({marca_aparato})")
@@ -70,65 +78,79 @@ col2.metric("Coste Mensual", f"{coste_mensual:,.2f} €")
 col3.metric("Beneficio Mes", f"{beneficio_mensual_real:,.2f} €")
 col4.metric("¿Rentable?", "✅ SÍ" if beneficio_mensual_real > 0 else "❌ NO")
 
-# 6. FUNCIÓN DE GENERACIÓN DE PDF CORREGIDA
+st.markdown("---")
+
+tab1, tab2 = st.tabs(["🔍 Análisis Detallado", "📈 Escenarios de Crecimiento"])
+with tab1:
+    c1, c2 = st.columns(2)
+    with c1:
+        st.write(f"**Coste por sesión:** {coste_unitario_sesion:.2f} €")
+        st.write(f"**Punto de equilibrio:** {punto_equilibrio:.2f} sesiones/mes")
+    with c2:
+        margen_pct = ((precio_sesion - coste_unitario_sesion) / precio_sesion * 100) if precio_sesion > 0 else 0
+        st.write(f"**Margen Bruto:** {margen_pct:.2f}%")
+        st.progress(min(max(margen_pct/100, 0.0), 1.0))
+
+with tab2:
+    escenarios = [5, 10, 20, 30, 40, 50]
+    data_esc = [[s, f"{s*precio_sesion:,.2f} €", f"{(s*precio_sesion)-coste_mensual:,.2f} €"] for s in escenarios]
+    st.table(pd.DataFrame(data_esc, columns=["Sesiones/Mes", "Ingresos", "Neto Mensual"]))
+
+# 6. FUNCIÓN PDF MEJORADA (Logo + Tabla)
 def create_pdf_bytes():
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
     
-    # Header
+    # Logo corregido
+    if logo_exists:
+        pdf.image(logo_filename, x=10, y=8, w=35)
+    
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "INFORME DE RENTABILIDAD - IMPULXER", ln=True, align="C")
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 10, f"Generado el: {datetime.now().strftime('%d/%m/%Y')}", ln=True, align="R")
+    pdf.ln(10)
+    pdf.cell(0, 10, "INFORME DE RENTABILIDAD", ln=True, align="C")
+    pdf.set_font("Arial", "", 9)
+    pdf.cell(0, 5, f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align="R")
     pdf.ln(10)
     
-    # Bloque Datos
+    # Sección Equipo
     pdf.set_fill_color(240, 240, 240)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, " 1. IDENTIFICACION DEL EQUIPO", ln=True, fill=True)
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 8, f" Aparato: {nombre_aparato}", ln=True)
-    pdf.cell(0, 8, f" Marca/Modelo: {marca_aparato}", ln=True)
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 10, f" EQUIPO: {nombre_aparato} / {marca_aparato}", ln=True, fill=True)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 7, f" Inversion Total: {inv_total_iva:,.2f} EUR", ln=True)
+    pdf.cell(0, 7, f" Amortizacion Mensual: {coste_mensual:,.2f} EUR", ln=True)
+    pdf.cell(0, 7, f" Precio Venta Sesion: {precio_sesion:,.2f} EUR", ln=True)
     pdf.ln(5)
     
-    # Bloque Financiero
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, " 2. ANALISIS FINANCIERO MENSUAL", ln=True, fill=True)
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 8, f" Inversion Total (con IVA e intereses): {inv_total_iva:,.2f} EUR", ln=True)
-    pdf.cell(0, 8, f" Coste Fijo Mensual (Amortizacion): {coste_mensual:,.2f} EUR", ln=True)
-    pdf.cell(0, 8, f" Precio por Sesion: {precio_sesion:,.2f} EUR", ln=True)
-    pdf.cell(0, 8, f" Sesiones Reales/Mes: {sesiones_reales_mes}", ln=True)
+    # Tabla de Escenarios en PDF
     pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 8, f" BENEFICIO NETO MENSUAL: {beneficio_mensual_real:,.2f} EUR", ln=True)
-    pdf.ln(15)
+    pdf.cell(0, 10, " PROYECCION DE ESCENARIOS", ln=True, fill=True)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(40, 8, " Sesiones/Mes", 1)
+    pdf.cell(60, 8, " Ingresos", 1)
+    pdf.cell(60, 8, " Beneficio Neto", 1, ln=True)
     
-    # Disclaimer
+    pdf.set_font("Arial", "", 10)
+    for s in escenarios:
+        pdf.cell(40, 8, f" {s}", 1)
+        pdf.cell(60, 8, f" {s*precio_sesion:,.2f} EUR", 1)
+        pdf.cell(60, 8, f" {(s*precio_sesion)-coste_mensual:,.2f} EUR", 1, ln=True)
+    
+    pdf.ln(10)
     pdf.set_font("Arial", "I", 8)
-    disclaimer = ("Este informe es una simulacion orientativa basada en los datos introducidos por el usuario. "
-                  "Impulxer Academy SL no se hace responsable de discrepancias con la realidad. "
-                  "Propiedad de Impulxer Academy SL - 2026")
+    disclaimer = "Este informe es una simulacion orientativa basada en los datos introducidos por el usuario. Impulxer Academy SL no se hace responsable de discrepancias con la realidad. Propiedad de Impulxer Academy SL - 2026"
     pdf.multi_cell(0, 5, disclaimer)
     
-    # Convertir a bytes para Streamlit
     return pdf.output()
 
 st.markdown("---")
-st.subheader("📥 Exportar Resultados")
-col_pdf, _ = st.columns([1, 2])
+st.subheader("📥 Exportar Informe")
+st.download_button(
+    label="💾 Descargar PDF Oficial",
+    data=bytes(create_pdf_bytes()),
+    file_name=f"ROI_{nombre_aparato}.pdf",
+    mime="application/pdf"
+)
 
-with col_pdf:
-    # Generamos el contenido del PDF
-    pdf_output = create_pdf_bytes()
-    
-    # Botón de descarga con los datos ya en formato correcto
-    st.download_button(
-        label="💾 Descargar Informe PDF",
-        data=bytes(pdf_output), # Forzamos la conversión a bytes
-        file_name=f"ROI_{nombre_aparato.replace(' ','_')}.pdf",
-        mime="application/pdf"
-    )
-
-# 7. FOOTER
-st.markdown(f"""<div class="footer">Este simulador es orientativo. Impulxer Academy no se hace responsable de discrepancias.<br><strong>Propiedad de Impulxer Academy SL - 2026</strong></div>""", unsafe_allow_html=True)
+st.markdown('<div class="spacer"></div>', unsafe_allow_html=True)
+st.markdown(f"""<div class="footer">Simulador orientativo. Impulxer Academy no se hace responsable de discrepancias.<br><strong>Propiedad de Impulxer Academy SL - 2026</strong></div>""", unsafe_allow_html=True)
